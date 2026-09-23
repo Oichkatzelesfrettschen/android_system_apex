@@ -44,6 +44,26 @@ from xml.dom import minidom
 tool_path_list = None
 BLOCK_SIZE = 4096
 
+# mke2fs reads its feature defaults from MKE2FS_CONFIG, else /etc/mke2fs.conf
+# of the build host, whose ext4 type can name features (orphan_file) that the
+# prebuilt e2fsprogs 1.45.4 rejects. The payload image takes its ext4
+# features from this profile, the one in system/extras/ext4_utils/mke2fs.conf.
+MKE2FS_CONF = """[defaults]
+    base_features = sparse_super,large_file,filetype,dir_index,ext_attr
+    default_mntopts = acl,user_xattr
+    enable_periodic_fsck = 0
+    blocksize = 4096
+    inode_size = 256
+    inode_ratio = 16384
+    reserved_ratio = 1.0
+
+[fs_types]
+    ext4 = {
+        features = has_journal,extent,huge_file,dir_nlink,extra_isize,uninit_bg
+        inode_size = 256
+    }
+"""
+
 
 def ParseArgs(argv):
   parser = argparse.ArgumentParser(description='Create an APEX file')
@@ -499,7 +519,11 @@ def CreateApex(args, work_dir):
     cmd.extend(['-E', 'hash_seed=' + uu])
     cmd.append(img_file)
     cmd.append(str(size_in_mb) + 'M')
-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
+    with tempfile.NamedTemporaryFile(suffix='.conf') as mke2fs_conf:
+      mke2fs_conf.write(MKE2FS_CONF)
+      mke2fs_conf.flush()
+      RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1',
+                                     'MKE2FS_CONFIG': mke2fs_conf.name})
 
     # Compile the file context into the binary form
     compiled_file_contexts = os.path.join(work_dir, 'file_contexts.bin')
