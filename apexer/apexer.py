@@ -183,15 +183,16 @@ def FindBinaryPath(binary):
 
 
 def RunCommand(cmd, verbose=False, env=None):
-  env = env or {}
-  env.update(os.environ.copy())
+  command_env = os.environ.copy()
+  if env:
+    command_env.update(env)
 
   cmd[0] = FindBinaryPath(cmd[0])
 
   if verbose:
     print('Running: ' + ' '.join(cmd))
   p = subprocess.Popen(
-      cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+      cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=command_env)
   output, _ = p.communicate()
 
   if verbose or p.returncode is not 0:
@@ -499,7 +500,12 @@ def CreateApex(args, work_dir):
     cmd.extend(['-E', 'hash_seed=' + uu])
     cmd.append(img_file)
     cmd.append(str(size_in_mb) + 'M')
-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
+    mkfs_env = {'E2FSPROGS_FAKE_TIME': '1'}
+    # The build's mke2fs must use ext4 features from the same source tree.
+    source_config = os.path.abspath('system/extras/ext4_utils/mke2fs.conf')
+    if os.path.isfile(source_config):
+      mkfs_env['MKE2FS_CONFIG'] = source_config
+    RunCommand(cmd, args.verbose, mkfs_env)
 
     # Compile the file context into the binary form
     compiled_file_contexts = os.path.join(work_dir, 'file_contexts.bin')
