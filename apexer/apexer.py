@@ -203,8 +203,9 @@ def FindBinaryPath(binary):
 
 
 def RunCommand(cmd, verbose=False, env=None):
-  env = env or {}
-  env.update(os.environ.copy())
+  merged = os.environ.copy()
+  merged.update(env or {})
+  env = merged
 
   cmd[0] = FindBinaryPath(cmd[0])
 
